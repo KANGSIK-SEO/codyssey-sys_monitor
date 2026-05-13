@@ -11,6 +11,8 @@ sys_monitor/
 │   ├── monitor.sh           # 매분 cron 실행 (배치 위치: $AGENT_HOME/bin/)
 │   ├── report.sh            # 보너스: monitor.log 통계 분석
 │   └── log_retention.sh     # 보너스: 7일 압축 + 30일 삭제
+├── app/
+│   └── agent_app.py         # 부트 시퀀스 5단계 + 0.0.0.0:15034 LISTEN 참조 앱
 └── docs/
     └── 요구사항_수행내역서.md
 ```
@@ -21,9 +23,10 @@ sys_monitor/
 # 1) 셋업 (SSH 포트, UFW, 계정, 디렉토리, cron 한 번에)
 sudo bash scripts/setup.sh
 
-# 2) 환경변수 + 앱 실행
-source <(grep -E '^export' docs/요구사항_수행내역서.md | head -8)
-sudo -u agent-admin bash -c "cd $AGENT_HOME && python3 agent_app.py"
+# 2) 환경변수 자동 로드 + 앱 실행 (참조 앱 사용 시)
+sudo cp app/agent_app.py /home/agent-admin/agent-app/agent_app.py
+sudo chown agent-admin:agent-admin /home/agent-admin/agent-app/agent_app.py
+sudo -u agent-admin -E bash -lc 'cd $AGENT_HOME && python3 agent_app.py'
 
 # 3) 1~2분 후 자동 누적 확인
 sudo tail /var/log/agent-app/monitor.log
@@ -80,3 +83,22 @@ cron 추가:
 ```
 0 3 * * * /path/to/log_retention.sh
 ```
+
+## 필수 증거 체크리스트
+
+| # | 항목 | 검증 명령 |
+|---|---|---|
+| 1 | SSH 20022 + Root 차단 | `grep -E '^(Port\|PermitRootLogin)' /etc/ssh/sshd_config` |
+| 2 | 방화벽 20022/15034 only | `sudo ufw status verbose` |
+| 3 | 계정/그룹 | `id agent-admin agent-dev agent-test` |
+| 4 | 디렉토리 권한 | `ls -ld $AGENT_HOME/{upload_files,api_keys} /var/log/agent-app` |
+| 5 | Boot Sequence 5단계 OK | `sudo -u agent-admin -E python3 $AGENT_HOME/agent_app.py` |
+| 6 | 15034 LISTEN | `ss -tlnp \| grep ':15034'` |
+| 7 | monitor.sh 결과 | `sudo -u agent-admin $AGENT_HOME/bin/monitor.sh` |
+| 8 | monitor.log 누적 | `sudo tail /var/log/agent-app/monitor.log` |
+| 9 | crontab 매분 등록 | `sudo crontab -u agent-admin -l` |
+
+## 제약사항 준수
+- Bash 만 사용 (Python은 제공 앱 실행 대상이며 스크립트 로직 X)
+- sudo 최소화 — setup.sh 외 monitor.sh 본문은 일반 계정 권한으로 동작
+- 일반 계정(agent-admin)이 cron 실행 주체

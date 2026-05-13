@@ -1,4 +1,7 @@
 .DS_Store
 *.log
 *.pem
-api_keys
+api_keys/
+__pycache__/
+*.pyc
+.venv/
