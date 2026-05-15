@@ -44,9 +44,15 @@ if ! ss -tln | awk '{print $4}' | grep -qE ":${PORT}\$"; then
 fi
 echo "Checking port $PORT... [OK]"
 
-# ============ FIREWALL CHECK (warn only) ============
-if command -v ufw >/dev/null && ! sudo -n ufw status 2>/dev/null | grep -q "Status: active"; then
-  echo "[WARNING] UFW가 비활성 상태입니다."
+# ============ FIREWALL / PORT EXPOSURE CHECK (sudo 미사용) ============
+# 직접 ufw status를 보려면 root 권한이 필요하므로, 일반 계정에서 가능한
+# 포트 LISTEN 상태로 방화벽 정책 준수 여부를 간접 검증한다.
+SSH_PORT=20022
+if ! ss -tln | awk '{print $4}' | grep -qE ":${SSH_PORT}\$"; then
+  echo "[WARNING] SSH 포트 ${SSH_PORT} 미개방 — 방화벽/SSH 설정 확인 필요"
+fi
+if ss -tln | awk '{print $4}' | grep -qE ":22\$"; then
+  echo "[WARNING] 기본 SSH 포트 22가 노출됨 — 보안 정책 위반"
 fi
 
 # ============ RESOURCE ============
